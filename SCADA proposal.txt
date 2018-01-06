@@ -1,0 +1,212 @@
+SCADA Proposal
+
+*****************************************************
+
+
+*****************************************************
+*					接口定义						*
+*****************************************************
+**** 数据相关接口 ****
+ITag: Tag接口
+	--name
+		--master computer name(string)：上位机tag名字
+		--slave computer name(string)：下位机tag名字
+	--value
+		--value(string)
+		--TimeStamp(string)
+		--Quality(Enum:good/bad)
+	--address: 上位机(master computer)时，一直为空(always empty)
+		--deviceName(string)：用于描述PLC，还是其他数据源
+		--instanceName(string)：用于描述axis、cylinder等组件
+		--groupNum(string)：
+		--offsetNum(string)：
+		--bitNum(string)：
+	--type
+		--type of type(string)：
+		--isArray(string)
+		--isPointer(string)
+		--type name(string)：	
+	--size: 
+		--count of bytes(string)：占的内存数
+		--count of number(string): 数组是数组的个数，非数组是1
+	--commit(string)：备注
+
+	e.g:
+		a:array[0..1]of b;//this button a
+		--name:
+			--sName:a
+		--type:
+			ToT:struct
+			typeName:b
+			isArray:true
+			isPointer:false
+		--size
+			--cntByte:
+			--cntNumer:2
+		--commit: this button a
+
+
+IGroup:
+	--properties
+		--name
+		--ID: x
+		--deadband: x
+		--updateRate
+
+	--methods
+		--addItem
+		--removeItem
+
+	--event
+		--dataChange
+
+
+**** 设备相关接口 ****
+IDriver:(备注“: x”表示暂时不实现)
+	--properties
+	    --connect address(string): IP or other
+		--groups: x
+		--name(string)
+		--isClosed
+		--parent: x
+		--timeout(bool)
+	--methods
+		--connect
+		--addGroup：x
+		--removeGroup: x 
+	--events
+		--onClose
+
+
+
+
+**** 读写相关的接口 ****
+IGetList:
+	--getAllTagList
+
+ISingleRW:
+	--readSingle
+	--writeSingle
+
+IMultiRW
+	--readMulti
+	--writeMulti
+
+
+
+
+
+
+
+*****************************************************
+*					功能分析						*
+*****************************************************
+系统模块分层：
+	--现场设备
+	--网关与服务
+	--客户端
+
+
+Tag列表管理：
+	--tag list
+		--tag name list
+		--tag address
+		--active or not
+	--数据库保存
+	--界面编辑
+
+模块驱动：
+	--使用反射，统一接口
+	--
+
+网关与客户端读取方式：
+	--同步读取
+	--订阅推送: 网关负责数据缓存，有改变的才推送。客户端接收推送的报文进行解析
+	--异步读取：回调
+
+
+数据分层：
+	--driver：不同的设备类型
+	--group：group可以定义刷新时间
+	--item：
+
+断线：
+	--断线判断
+	--事件提供
+
+基本通讯过程：
+	--批量轮询下位机
+	--与上个周期的数据比对
+	--提取变化的数据
+	--批量推送给上位机
+
+报警事件获取：
+	--使用自定义的协议+事件记录
+	--可以列表显示
+
+客户端表达式功能：
+	--组合tag的四则运算
+
+
+
+
+*****************************************************
+*					一些基本问题					*
+*****************************************************
+对于生产商：
+	需要解决的问题：
+	----替代现有的PLC的HMI：
+	--监控变量
+	--拓展HMI功能：自动生成器件界面，快速编辑
+	----提供工厂、区域范围的数据监控
+		--集中式监控：B/S模式，H5+2D/3D界面显示
+		--权限管理：工程站、监控站
+	--数据统计分级
+	--数据报表、分析
+	----工厂式监控，又能解决什么问题？
+		--减少管理人员？？怎么实现
+		--自动化工厂，实现无人生产车间，只要少数人员监控
+		----困难点：
+			--协议多样
+
+
+对于开发商：
+	程序远程更新和部署
+	分布式控制系统：
+	控制器间通讯：时间敏感工业控制网络
+	统一的分布式控制框架：事件订阅与发布、事件夹带传递参数
+
+
+
+*****************************************************
+*					用到的技术						*
+*****************************************************
+带参数的事件发布与响应
+	--界面响应
+	--连接状态
+	--
+
+订阅与推送
+	--网关与客户端通信
+
+表达式树
+	--客户端实现表达式功能
+
+
+网关可以尝试使用.net core
+客户端使用HTML5: 如何解决编码和绘图分离
+	--方案一：PyQt5
+		自己开发图形界面，没有组态IDE，自动生成界面	
+	--方案二：wpf
+		可以实现容易组态，编辑图元
+
+
+
+
+
+
+
+
+
+
+
