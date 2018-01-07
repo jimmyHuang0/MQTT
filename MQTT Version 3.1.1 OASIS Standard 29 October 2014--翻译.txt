@@ -400,13 +400,158 @@ http://export.gov/safeharbor/eu/eg_main_018365.asp
 	Reserved	15	Forbidden	Reserved
 
 
-#2.2.2 标记(Flags)
-2.2.3 剩余长度
-2.3 变量头	
-2.3.1 报文标识符
-2.4 Payload
-3 MQTT控制报文
-3.1 连接CONNECT--客户端请求服务器的连接
+#2.2.2 标志(Flags)
+	在控制报文的固定头的第一个byte的0~3bit，就是标志Flag。
+	在表格2.2中有一些标志位保留的flag，还有其他的必须是表格里面的值 [MQTT-2.2.2-1]。
+	如果接收到不正确flag，必须关闭网络连接[MQTT-2.2.2-2]。在4.8节中有详细的错误处理介绍。
+
+	 Table 2.2 - Flag Bits
+	Control Packet	Fixed header flags	Bit 3	Bit 2	Bit 1	Bit 0
+	CONNECT	Reserved	0	0	0	0
+	CONNACK	Reserved	0	0	0	0
+	PUBLISH	Used in MQTT 3.1.1	DUP1	QoS2	QoS2	RETAIN3
+	PUBACK	Reserved	0	0	0	0
+	PUBREC	Reserved	0	0	0	0
+	PUBREL	Reserved	0	0	1	0
+	PUBCOMP	Reserved	0	0	0	0
+	SUBSCRIBE	Reserved	0	0	1	0
+	SUBACK	Reserved	0	0	0	0
+	UNSUBSCRIBE	Reserved	0	0	1	0
+	UNSUBACK	Reserved	0	0	0	0
+	PINGREQ	Reserved	0	0	0	0
+	PINGRESP	Reserved	0	0	0	0
+	DISCONNECT	Reserved	0	0	0	0
+
+	DUP1       	=PUBLISH格式重复传输标志 Duplicate delivery of a PUBLISH Control Packet
+	QoS2       	=PUBLISH的传输质量服务 PUBLISH Quality of Service
+	RETAIN3 	=PUBLISH的保持标志 PUBLISH Retain flag 
+	详看3.3.1节。
+
+#2.2.3 剩余长度
+	位置：第二个byte起
+
+	剩余长度包括变量头和payload。剩余长度不包括用来编码的剩余长度。(怎么理解？)
+
+	Table 2.4 Size of Remaining Length field
+	Digits	From	To
+	1	0 (0x00)	127 (0x7F)
+	2	128 (0x80, 0x01)	16 383 (0xFF, 0x7F)
+	3	16 384 (0x80, 0x80, 0x01)	2 097 151 (0xFF, 0xFF, 0x7F)
+	4	2 097 152 (0x80, 0x80, 0x80, 0x01)	268 435 455 (0xFF, 0xFF, 0xFF, 0x7F)
+
+	Non normative comment
+	编码算法
+	The algorithm for encoding a non negative integer (X) into the variable length encoding scheme is as follows:
+	               do
+	              encodedByte = X MOD 128
+	              X = X DIV 128
+	             // if there are more data to encode, set the top bit of this byte
+	             if ( X > 0 )
+	                 encodedByte = encodedByte OR 128
+	             endif
+	                 'output' encodedByte
+	        while ( X > 0 )
+
+	Where MOD is the modulo operator (% in C), DIV is integer division (/ in C), and OR is bit-wise or (| in C).
+
+	Non normative comment
+	解码算法
+	The algorithm for decoding the Remaining Length field is as follows:
+
+	       multiplier = 1
+	       value = 0
+	       do
+	            encodedByte = 'next byte from stream'
+	            value += (encodedByte AND 127) * multiplier
+	            multiplier *= 128
+	            if (multiplier > 128*128*128)
+	               throw Error(Malformed Remaining Length)
+	       while ((encodedByte AND 128) != 0)
+
+	where AND is the bit-wise and operator (& in C).
+
+	When this algorithm terminates, value contains the Remaining Length value.
+
+##2.3 变量头
+	有些MQTT控制报文包括变量头部分。它在固定报文头以及payload中间。
+	它的内容根据报文类型而不同。
+	其中报文标识(Packet Identifer)在有些控制报文类型中比较常见。
+
+#2.3.1 报文标识符
+	Figure 2.3 - Packet Identifier bytes
+	Bit	7	6	5	4	3	2	1	0
+	byte 1	Packet Identifier MSB
+	byte 2	Packet Identifier LSB
+
+	以下类型的控制报文类型包含2bytes的报文Packet Identifer: 
+	PUBLISH (where QoS > 0), PUBACK, PUBREC, PUBREL, PUBCOMP, SUBSCRIBE, SUBACK, UNSUBSCRIBE, UNSUBACK.
+
+	其中SUBSCRIBE, UNSUBSCRIBE, 和 PUBLISH (in cases where QoS > 0)的控制报文必须包含一个非零的16bitPacket Identifer。
+	每当客户端发送一个新的上面类型的报文，都需要分配一个新的Packet Identifer。
+	如果一个客户端重新发送一个特别的控制报文，则它必须使用相同的的Packet Identifer在后面的重新发送。
+	Packet Identifer在客户端被正确响应之后可以被重用。
+	当在QoS 1 PUBLISH 相当于PUBACK；在QoS 2 相当于PUBCOMP。对于SUBSCRIBE或者UNSUBSCRIBE，相当于SUBACK或者UNSUBACK。
+	对于服务器来说，相同的条件就是发送一个QoS>0的PUBLISH报文。
+
+	一个PUBLISH报文，当QoS为0时，禁止包含Packet Identifer。
+
+	一个PUBACK、PUBREC 或者PUBREL报文必须包含相同的一开始由PUBLISH报文发出的Packet Identifer。
+	类似的SUBACK和UNSUBACK必须包含SUBSCRIBE和UNSUBSCRIBE报文使用的Packet Identifer。
+
+	其中，需要使用Packet Identifer的控制报文见表2.5。
+
+	Table 2.5 - Control Packets that contain a Packet Identifier
+	Control Packet	Packet Identifier field
+	CONNECT	NO
+	CONNACK	NO
+	PUBLISH	YES (If QoS > 0)
+	PUBACK	YES
+	PUBREC	YES
+	PUBREL	YES
+	PUBCOMP	YES
+	SUBSCRIBE	YES
+	SUBACK	YES
+	UNSUBSCRIBE	YES
+	UNSUBACK	YES
+	PINGREQ	NO
+	PINGRESP	NO
+	DISCONNECT	NO
+
+	客户端和服务器分配独立的Packet Identifer，他们之间使用相同的Packet Identifer进行消息传输。
+
+	非标准说明：
+	其允许同时客户端和服务器同时发送相同搞得Packet Identifer 0x1234来进行PUBLISH。
+	同时双发用相同的0x1234来回应。
+   Client                     Server
+   PUBLISH Packet Identifier=0x1234---
+   --PUBLISH Packet Identifier=0x1234
+   PUBACK Packet Identifier=0x1234---
+   --PUBACK Packet Identifier=0x1234
+
+##2.4 Payload
+	在第三章有介绍关于Payload报文的。在表2.6说明需要使用payload的报文类型。
+	Table 2.6 - Control Packets that contain a Payload
+	Control Packet	Payload
+	CONNECT	Required
+	CONNACK	None
+	PUBLISH	Optional
+	PUBACK	None
+	PUBREC	None
+	PUBREL	None
+	PUBCOMP	None
+	SUBSCRIBE	Required
+	SUBACK	Required
+	UNSUBSCRIBE	Required
+	UNSUBACK	None
+	PINGREQ	None
+	PINGRESP	None
+	DISCONNECT	None
+
+###3 MQTT控制报文
+##3.1 连接CONNECT--客户端请求服务器的连接
+
+
+
 3.2 CONNACK--确认连接请求
 3.3 PUBLISH--发布消息
 3.4 PUBACK--发布确认
